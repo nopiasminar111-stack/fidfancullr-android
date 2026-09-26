@@ -1,0 +1,46 @@
+<resources>
+    <string name="app_name">FidFanCullr</string>
+
+    <string name="onboarding_title">Selamat Datang di FidFanCullr</string>
+    <string name="onboarding_subtitle">Lihat. Putuskan. Sortir.</string>
+    <string name="choose_inbox">Pilih Folder Foto</string>
+    <string name="choose_inbox_desc">Pilih folder yang berisi foto-foto kamu</string>
+    <string name="theme">Tema</string>
+    <string name="accent">Warna Aksen</string>
+    <string name="language">Bahasa</string>
+    <string name="continue_label">Lanjut</string>
+    <string name="start_culling">Mulai Culling</string>
+
+    <string name="light">Terang</string>
+    <string name="dark">Gelap</string>
+    <string name="system">Ikuti Sistem</string>
+
+    <string name="violet_pixel">Violet Pixel</string>
+    <string name="ocean_blue">Ocean Blue</string>
+    <string name="mint_green">Mint Green</string>
+    <string name="coral_peach">Coral Peach</string>
+
+    <string name="settings">Pengaturan</string>
+    <string name="keep">SIMPAN</string>
+    <string name="select">PILIH</string>
+    <string name="reject">TOLAK</string>
+    <string name="folder_names">Nama Folder</string>
+    <string name="sorting_keys">Tombol Sortir</string>
+    <string name="reselect_inbox">Ganti Folder Foto</string>
+
+    <string name="camera">Kamera</string>
+    <string name="lens">Lensa</string>
+    <string name="iso">ISO</string>
+    <string name="shutter_speed">Kecepatan Rana</string>
+    <string name="aperture">Bukaan</string>
+    <string name="focal_length">Focal Length</string>
+    <string name="date_time">Tanggal &amp; Waktu</string>
+
+    <string name="no_photos_found">Tidak ada foto yang didukung di folder ini</string>
+    <string name="culling_complete">Selesai! Semua foto sudah disortir.</string>
+    <string name="raw_no_preview">Tidak ada preview untuk file RAW ini</string>
+    <string name="group_count">%1$d dari %2$d</string>
+    <string name="reset_zoom">Reset zoom</string>
+    <string name="show_exif">Tampilkan metadata</string>
+    <string name="hide_exif">Sembunyikan metadata</string>
+</resources>
