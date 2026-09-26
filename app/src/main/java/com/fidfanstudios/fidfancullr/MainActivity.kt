@@ -5,6 +5,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,7 +50,8 @@ class MainActivity : ComponentActivity() {
             FidFanCullrTheme(
                 accent = loaded?.accentPalette ?: com.fidfanstudios.fidfancullr.data.AccentPalette.VIOLET_PIXEL,
                 themeMode = loaded?.themeMode ?: com.fidfanstudios.fidfancullr.data.ThemeMode.SYSTEM,
-                useDynamicColor = loaded?.useDynamicColor ?: true
+                useDynamicColor = loaded?.useDynamicColor ?: true,
+                pureBlack = loaded?.pureBlackTheme ?: false
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     if (loaded == null) {
@@ -73,7 +79,18 @@ private fun AppNavHost(
 ) {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = startDestination) {
+    // Onboarding -> Culling is an explicit hard cut (no crossfade): the old
+    // screen fully disappears before the new one draws, instead of both
+    // being visible mid-transition (which showed the welcome screen
+    // blended under the culling image for a moment). Settings still gets a
+    // normal fade since it's a lightweight overlay-style screen where a
+    // brief crossfade doesn't read as a glitch.
+    NavHost(
+        navController = navController,
+        startDestination = startDestination,
+        enterTransition = { fadeIn(tween(180)) + slideInHorizontally(initialOffsetX = { it / 10 }, animationSpec = tween(220)) },
+        exitTransition = { fadeOut(tween(150)) + slideOutHorizontally(targetOffsetX = { -it / 12 }, animationSpec = tween(180)) }
+    ) {
         composable(Routes.ONBOARDING) {
             OnboardingScreen(
                 viewModel = settingsViewModel,
@@ -90,7 +107,11 @@ private fun AppNavHost(
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) }
             )
         }
-        composable(Routes.SETTINGS) {
+        composable(
+            Routes.SETTINGS,
+            enterTransition = { fadeIn(tween(180)) + slideInHorizontally(initialOffsetX = { it / 8 }, animationSpec = tween(220)) },
+            exitTransition = { fadeOut(tween(150)) + slideOutHorizontally(targetOffsetX = { it / 10 }, animationSpec = tween(180)) }
+        ) {
             SettingsScreen(
                 viewModel = settingsViewModel,
                 onBack = { navController.popBackStack() }

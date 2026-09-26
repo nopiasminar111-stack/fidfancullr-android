@@ -6,416 +6,196 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fidfanstudios.fidfancullr.R
-import com.fidfanstudios.fidfancullr.data.ExifData
-import com.fidfanstudios.fidfancullr.data.PhotoGroup
-import com.fidfanstudios.fidfancullr.data.SortDestination
+import com.fidfanstudios.fidfancullr.data.*
 import com.fidfanstudios.fidfancullr.ui.theme.PillShape
-import com.fidfanstudios.fidfancullr.viewmodel.CullingViewModel
-import com.fidfanstudios.fidfancullr.viewmodel.PreviewUiState
-import kotlin.math.abs
+import com.fidfanstudios.fidfancullr.util.PreviewLoader
+import com.fidfanstudios.fidfancullr.util.PreviewResult
+import com.fidfanstudios.fidfancullr.viewmodel.*
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
-private const val SWIPE_THRESHOLD = 120f
+private const val SWIPE_THRESHOLD=120f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CullingScreen(
-    viewModel: CullingViewModel,
-    onOpenSettings: () -> Unit
-) {
-    val uiState by viewModel.uiState.collectAsState()
-    val settings by viewModel.settings.collectAsState()
-    var showExif by rememberSaveable { mutableStateOf(true) }
-
-    val pickFolderLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            viewModel.getApplication<android.app.Application>().contentResolver
-                .takePersistableUriPermission(uri, flags)
-            viewModel.setInbox(uri)
-        }
-    }
-
-    Scaffold(
-        contentWindowInsets = WindowInsets.systemBars,
-        topBar = {
-            TopAppBar(
-                title = {
-                    AnimatedContent(targetState = uiState.groups.size to uiState.currentIndex, label = "counter") {
-                        Text(
-                            if (uiState.groups.isNotEmpty())
-                                stringResource(R.string.group_count, uiState.currentIndex + 1, uiState.groups.size)
-                            else "",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showExif = !showExif }) {
-                        Icon(Icons.Filled.Info, contentDescription = stringResource(R.string.show_exif))
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            when {
-                uiState.isLoading -> LoadingState()
-
-                uiState.isComplete || uiState.currentGroup == null -> CompleteState(
-                    onChooseFolder = { pickFolderLauncher.launch(null) },
-                    onOpenSettings = onOpenSettings
-                )
-
-                else -> CullingWorkspace(
-                    group = uiState.currentGroup!!,
-                    previewState = uiState.previewState,
-                    currentExif = uiState.currentExif,
-                    showExif = showExif,
-                    destinations = settings.destinations,
-                    onSort = viewModel::sortCurrentGroup,
-                    onRetry = viewModel::retryCurrentPreview
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun LoadingState() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
-    }
-}
-
-/**
- * Shown whenever there are no photo groups left to sort — either the whole
- * inbox has been culled, or the picked folder had nothing supported in it.
- * The person is never left staring at a blank screen: there's always an
- * immediate, primary way forward (pick a different folder).
- */
-@Composable
-private fun CompleteState(
-    onChooseFolder: () -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(300)) + scaleIn(initialScale = 0.92f, animationSpec = tween(300))
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                Icons.Filled.CheckCircle,
-                contentDescription = null,
-                modifier = Modifier.size(72.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(24.dp))
-            Text(
-                stringResource(R.string.culling_complete),
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.culling_complete_desc),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Spacer(Modifier.height(32.dp))
-            Button(
-                onClick = onChooseFolder,
-                shape = PillShape,
-                contentPadding = PaddingValues(horizontal = 28.dp, vertical = 16.dp)
-            ) {
-                Icon(Icons.Filled.CreateNewFolder, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.choose_another_folder), style = MaterialTheme.typography.labelLarge)
-            }
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onOpenSettings) {
-                Text(stringResource(R.string.settings))
-            }
-        }
-    }
-}
-
-/**
- * The image + gesture + sort-buttons area, isolated into its own composable
- * so that fast-changing gesture state (zoom/pan/drag) only recomposes this
- * subtree rather than the whole screen (top bar, scaffold, etc).
- */
-@Composable
-private fun CullingWorkspace(
-    group: PhotoGroup,
-    previewState: PreviewUiState,
-    currentExif: ExifData?,
-    showExif: Boolean,
-    destinations: List<SortDestination>,
-    onSort: (SortDestination) -> Unit,
-    onRetry: () -> Unit
-) {
-    Column(Modifier.fillMaxSize()) {
-        ZoomableSwipeableImage(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            group = group,
-            previewState = previewState,
-            destinations = destinations,
-            onSort = onSort,
-            onRetry = onRetry
-        )
-
-        AnimatedVisibility(visible = showExif, enter = fadeIn(), exit = fadeOut()) {
-            ExifPanel(currentExif)
-        }
-
-        SortButtonsRow(destinations = destinations, onSort = onSort)
-    }
-}
-
-@Composable
-private fun ZoomableSwipeableImage(
-    modifier: Modifier,
-    group: PhotoGroup,
-    previewState: PreviewUiState,
-    destinations: List<SortDestination>,
-    onSort: (SortDestination) -> Unit,
-    onRetry: () -> Unit
-) {
-    val scope = rememberCoroutineScope()
-    val scale = remember(group.stem) { androidx.compose.animation.core.Animatable(1f) }
-    val offsetX = remember(group.stem) { androidx.compose.animation.core.Animatable(0f) }
-    val offsetY = remember(group.stem) { androidx.compose.animation.core.Animatable(0f) }
-    val dragOffsetX = remember(group.stem) { androidx.compose.animation.core.Animatable(0f) }
-
-    val isZoomed = scale.value > 1.01f
-    val springSpec = spring<Float>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
-
-    Box(
-        modifier = modifier.background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
-        val baseModifier = Modifier
-            .fillMaxSize()
-            .pointerInput(group.stem) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scope.launch {
-                        scale.snapTo((scale.value * zoom).coerceIn(1f, 5f))
-                        offsetX.snapTo(offsetX.value + pan.x)
-                        offsetY.snapTo(offsetY.value + pan.y)
+fun CullingScreen(viewModel:CullingViewModel,onOpenSettings:()->Unit){
+    val ui by viewModel.uiState.collectAsState(); val settings by viewModel.settings.collectAsState()
+    var showExif by rememberSaveable{mutableStateOf(true)}; var compare by rememberSaveable{mutableStateOf(false)}
+    var showTools by rememberSaveable{mutableStateOf(false)}; var showFilter by rememberSaveable{mutableStateOf(false)}
+    val haptic=LocalHapticFeedback.current
+    val pick=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()){uri->if(uri!=null){val f=Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION;viewModel.getApplication<android.app.Application>().contentResolver.takePersistableUriPermission(uri,f);viewModel.setInbox(uri)}}
+    Scaffold(topBar={TopAppBar(title={AnimatedContent(ui.groups.size to ui.currentIndex,label="counter"){Text(if(ui.groups.isNotEmpty())"${ui.currentIndex+1} / ${ui.groups.size}" else "FidFan Cullr")}},actions={
+        IconButton(onClick={viewModel::undoLast},enabled=ui.undo!=null){Icon(Icons.Default.Undo,"Undo")}
+        IconButton(onClick={onOpenSettings}){Icon(Icons.Default.Settings,"Settings")}
+    })}){padding->
+        Box(Modifier.fillMaxSize().padding(padding).onPreviewKeyEvent{e->
+            if(e.type!=KeyEventType.KeyDown)return@onPreviewKeyEvent false
+            val g=ui.currentGroup?:return@onPreviewKeyEvent false
+            val dest=when(e.key){Key.One->settings.destinations.getOrNull(0);Key.Two->settings.destinations.getOrNull(1);Key.Three->settings.destinations.getOrNull(2);Key.DirectionRight->settings.destinations.firstOrNull();Key.DirectionLeft->settings.destinations.lastOrNull();Key.DirectionUp->settings.destinations.firstOrNull{it.id=="select"}?:settings.destinations.getOrNull(1);else->null}
+            if(dest!=null){if(settings.hapticFeedback)performCullHaptic(haptic,dest);viewModel.sortCurrentGroup(dest);true}else false
+        }){
+            when{ui.isLoading->LoadingState();ui.isComplete||ui.currentGroup==null->CompleteState({pick.launch(null)},onOpenSettings);else->Column(Modifier.fillMaxSize()){
+                Box(Modifier.weight(1f).fillMaxWidth()){
+                    if(compare) CompareView(ui,settings,onClose={compare=false}) else ZoomableSwipeableImage(ui.currentGroup!!,ui.previewState,settings.destinations,settings.hapticFeedback,viewModel::sortCurrentGroup,viewModel::retryCurrentPreview)
+                    Row(Modifier.align(Alignment.TopEnd).padding(10.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                        SmallFab("Compare",Icons.Default.CompareArrows){compare=true}
+                        SmallFab(if(showExif)"Hide EXIF" else "EXIF",Icons.Default.Info){showExif=!showExif}
+                        SmallFab("Tools",Icons.Default.Tune){showTools=!showTools}
                     }
                 }
-            }
+                AnimatedVisibility(showTools,enter=fadeIn(),exit=fadeOut()){ToolPanel(ui,viewModel)}
+                AnimatedVisibility(showExif,enter=fadeIn(),exit=fadeOut()){ExifPanel(ui.currentExif)}
+                SortButtonsRow(settings.destinations,viewModel::sortCurrentGroup,settings.hapticFeedback)
+            }}
+        }
+    }
+    if(showFilter){} // reserved for a future modal surface; sorting is exposed in ToolPanel.
+}
 
-        // Swipe-to-sort only engages at 1x zoom, so panning a zoomed-in
-        // image never gets misread as a sort gesture.
-        val gestureModifier = if (!isZoomed) {
-            baseModifier.pointerInput(group.stem, destinations) {
-                detectDragGestures(
-                    onDragEnd = {
-                        val dest = destinationForSwipe(dragOffsetX.value, destinations)
-                        scope.launch {
-                            if (dest != null) {
-                                onSort(dest)
-                            } else {
-                                dragOffsetX.animateTo(0f, springSpec)
-                            }
-                        }
-                    }
-                ) { change, delta ->
-                    change.consume()
-                    scope.launch { dragOffsetX.snapTo(dragOffsetX.value + delta.x) }
-                }
-            }
-        } else baseModifier
 
-        Box(gestureModifier, contentAlignment = Alignment.Center) {
+private fun performCullHaptic(haptic: androidx.compose.ui.hapticfeedback.HapticFeedback, destination: SortDestination) {
+    val type = when (destination.id) {
+        "keep" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
+        "select" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd
+        "reject" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.KeyboardTap
+        else -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.VirtualKey
+    }
+    haptic.performHapticFeedback(type)
+}
+
+@Composable private fun SmallFab(text:String,icon:androidx.compose.ui.graphics.vector.ImageVector,onClick:()->Unit){FilledTonalIconButton(onClick=onClick,modifier=Modifier.height(40.dp).widthIn(min=40.dp)){Icon(icon,text)}}
+
+@Composable private fun ToolPanel(ui:CullingUiState,vm:CullingViewModel){
+    Card(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=4.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainerHigh)){
+        Column(Modifier.padding(12.dp)){Text("Culling tools",style=MaterialTheme.typography.titleSmall);Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.padding(top=8.dp)){(1..5).forEach{r->FilterChip(selected=ui.currentGroup?.let{ui.ratings[it.stem]==r}==true,onClick={vm.rateCurrent(r)},label={Text("★$r")})}}
+            Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.padding(top=6.dp)){ColorTag.values().forEach{tag->FilterChip(selected=ui.currentGroup?.let{ui.tags[it.stem]==tag}==true,onClick={ {vm.tagCurrent(tag)} },label={Text(tag.name)})}}
+            Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.padding(top=6.dp)){Text("Sort:");TextButton({vm.filterAndSort("name")}){Text("Name")};TextButton({vm.filterAndSort("date")}){Text("Date")};TextButton({vm.filterAndSort("size")}){Text("Size")};TextButton({vm.filterAndSort("focal")}){Text("Focal")}}
+            Text("Swipe right = Keep • left = Reject • up = Select • keyboard 1/2/3",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable private fun LoadingState(){Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}}
+@Composable private fun CompleteState(onChooseFolder:()->Unit,onOpenSettings:()->Unit){var visible by remember{mutableStateOf(false)};LaunchedEffect(Unit){visible=true};AnimatedVisibility(visible,enter=fadeIn(tween(220))+scaleIn(initialScale=.96f,animationSpec=spring())){Column(Modifier.fillMaxSize().padding(32.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){Icon(Icons.Default.CheckCircle,null,Modifier.size(72.dp),tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(20.dp));Text(stringResource(R.string.culling_complete),style=MaterialTheme.typography.headlineMedium);Spacer(Modifier.height(8.dp));Text(stringResource(R.string.culling_complete_desc),textAlign=androidx.compose.ui.text.style.TextAlign.Center);Spacer(Modifier.height(24.dp));Button(onChooseFolder,shape=PillShape){Icon(Icons.Default.CreateNewFolder,null);Spacer(Modifier.width(8.dp));Text(stringResource(R.string.choose_another_folder))};TextButton(onOpenSettings){Text(stringResource(R.string.settings))}}}}
+
+@Composable private fun ZoomableSwipeableImage(group:PhotoGroup,previewState:PreviewUiState,destinations:List<SortDestination>,haptics:Boolean,onSort:(SortDestination)->Unit,onRetry:()->Unit){
+    val scope=rememberCoroutineScope();val haptic=LocalHapticFeedback.current;var scale by remember(group.stem){mutableFloatStateOf(1f)};var ox by remember(group.stem){mutableFloatStateOf(0f)};var oy by remember(group.stem){mutableFloatStateOf(0f)};var dragX by remember(group.stem){mutableFloatStateOf(0f)};var dragY by remember(group.stem){mutableFloatStateOf(0f)};var highlight by rememberSaveable(group.stem){mutableStateOf(false)}
+    val highlightRatio = remember(previewState) {
+        val bitmap = (previewState as? PreviewUiState.Loaded)?.bitmap
+        if (bitmap == null) 0f else {
+            val step = (bitmap.width * bitmap.height / 4000).coerceAtLeast(1)
+            var clipped = 0; var samples = 0; var i = 0
+            while (i < bitmap.width * bitmap.height) {
+                val c = bitmap.getPixel(i % bitmap.width, i / bitmap.width)
+                if (android.graphics.Color.red(c) > 245 && android.graphics.Color.green(c) > 245 && android.graphics.Color.blue(c) > 245) clipped++
+                samples++; i += step
+            }
+            if (samples == 0) 0f else clipped.toFloat() / samples
+        }
+    }
+    val animatedDrag by animateFloatAsState(dragX,animationSpec=spring(dampingRatio=Spring.DampingRatioMediumBouncy,stiffness=Spring.StiffnessMedium),label="drag")
+    Box(Modifier.fillMaxSize().background(Color.Black),contentAlignment=Alignment.Center){
+        val gestures=Modifier.pointerInput(group.stem){detectTransformGestures{_,pan,zoom,_->if(scale>1f||zoom>1f){scale=(scale*zoom).coerceIn(1f,5f);ox+=pan.x;oy+=pan.y}}}.pointerInput(group.stem){detectTapGestures(onDoubleTap={scale=if(scale>1.01f)1f else 2f;ox=0f;oy=0f},onTap={if(scale<=1.01f){scale=2f;ox=-it.x*.25f;oy=-it.y*.25f}})}
+        val swipe=Modifier.pointerInput(group.stem,destinations){detectDragGestures(onDragEnd={val d=when{abs(dragY)>SWIPE_THRESHOLD&&dragY<0->destinations.firstOrNull{it.id=="select"}?:destinations.getOrNull(1);abs(dragX)>SWIPE_THRESHOLD&&dragX>0->destinations.firstOrNull();abs(dragX)>SWIPE_THRESHOLD->destinations.lastOrNull();else->null};if(d!=null){if(haptics)performCullHaptic(haptic,d);onSort(d)};scope.launch{dragX=0f;dragY=0f}}){c,delta->if(scale<=1.01f){c.consume();dragX+=delta.x;dragY+=delta.y}}}
+        Box(gestures.then(swipe), Modifier.fillMaxSize(), contentAlignment=Alignment.Center) {
             when (previewState) {
                 is PreviewUiState.Loading -> CircularProgressIndicator(color = Color.White)
-
-                is PreviewUiState.Loaded -> Image(
-                    bitmap = previewState.bitmap.asImageBitmap(),
-                    contentDescription = group.stem,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer(
-                            scaleX = scale.value,
-                            scaleY = scale.value,
-                            translationX = offsetX.value + dragOffsetX.value,
-                            translationY = offsetY.value
+                is PreviewUiState.Loaded -> {
+                    Image(
+                        previewState.bitmap.asImageBitmap(), group.stem,
+                        Modifier.fillMaxSize().graphicsLayer(
+                            scaleX = scale, scaleY = scale,
+                            translationX = ox + animatedDrag, translationY = oy + dragY
                         )
-                )
-
+                    )
+                    HistogramOverlay(previewState.bitmap)
+                    if (highlight && highlightRatio > .005f) HighlightBadge(highlightRatio)
+                }
                 is PreviewUiState.NoPreview -> PreviewMessage(stringResource(R.string.raw_no_preview))
-
                 is PreviewUiState.Error -> ErrorMessage(previewState.message, onRetry)
             }
-
-            if (group.hasRaw) {
-                RawBadge(Modifier.align(Alignment.TopStart).padding(12.dp))
-            }
-
-            if (isZoomed) {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            scale.animateTo(1f, springSpec)
-                            offsetX.animateTo(0f, springSpec)
-                            offsetY.animateTo(0f, springSpec)
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
-                ) { Text(stringResource(R.string.reset_zoom), color = Color.White) }
-            }
+            if (group.hasRaw) RawBadge(Modifier.align(Alignment.TopStart).padding(12.dp))
+            FilledTonalIconButton(
+                onClick = { highlight = !highlight },
+                modifier = Modifier.align(Alignment.TopStart).padding(top = 52.dp, start = 10.dp)
+            ) { Icon(Icons.Default.BrightnessHigh, "Highlight alert") }
+            if (scale > 1.01f) TextButton(
+                onClick = { scale = 1f; ox = 0f; oy = 0f },
+                modifier = Modifier.align(Alignment.BottomStart)
+            ) { Text("100% / Reset", color = Color.White) }
         }
     }
 }
 
-private fun destinationForSwipe(dragX: Float, destinations: List<SortDestination>): SortDestination? {
-    if (abs(dragX) < SWIPE_THRESHOLD || destinations.isEmpty()) return null
-    return if (dragX > 0) destinations.first() else destinations.last()
+@Composable private fun HistogramOverlay(bitmap:android.graphics.Bitmap){
+    val bins=remember(bitmap){Array(3){IntArray(32)}.also{b->val step=(bitmap.width*bitmap.height/5000).coerceAtLeast(1);var i=0;while(i<bitmap.width*bitmap.height){val c=bitmap.getPixel(i%bitmap.width,i/bitmap.width);b[0][android.graphics.Color.red(c)*31/255]++;b[1][android.graphics.Color.green(c)*31/255]++;b[2][android.graphics.Color.blue(c)*31/255]++;i+=step}}}
+    Canvas(Modifier.size(96.dp,52.dp).padding(4.dp).clip(MaterialTheme.shapes.small)){val max=bins.flatMap{it.asIterable()}.maxOrNull()?.coerceAtLeast(1)?:1;val channels=listOf(Color.Red,Color.Green,Color.Blue);for(ch in 0..2){for(i in bins[ch].indices){val h=bins[ch][i].toFloat()/max*size.height;drawLine(channels[ch].copy(alpha=.55f),Offset(i*size.width/bins[ch].size,size.height),Offset(i*size.width/bins[ch].size,size.height-h),strokeWidth=1.5f)}}}
 }
+@Composable private fun HighlightBadge(ratio:Float){Surface(Modifier.padding(top=10.dp).clip(PillShape),color=Color.Red.copy(alpha=.75f)){Text("HIGHLIGHT ${(ratio*100).toInt()}%",Modifier.padding(horizontal=8.dp,vertical=4.dp),color=Color.White,style=MaterialTheme.typography.labelSmall)}}
+@Composable private fun PreviewMessage(text:String){Text(text,color=Color.White,modifier=Modifier.padding(24.dp),textAlign=androidx.compose.ui.text.style.TextAlign.Center)}
+@Composable private fun ErrorMessage(message:String,onRetry:()->Unit){Column(horizontalAlignment=Alignment.CenterHorizontally,modifier=Modifier.padding(24.dp)){Icon(Icons.Default.WarningAmber,null,tint=Color.White);Text(message,color=Color.White,textAlign=androidx.compose.ui.text.style.TextAlign.Center);FilledTonalButton(onRetry){Text(stringResource(R.string.retry))}}}
+@Composable private fun RawBadge(modifier:Modifier=Modifier){Surface(modifier,color=MaterialTheme.colorScheme.primary,shape=PillShape){Text("RAW",Modifier.padding(horizontal=10.dp,vertical=4.dp),color=MaterialTheme.colorScheme.onPrimary)}}
 
-@Composable
-private fun PreviewMessage(text: String) {
-    Text(text, color = Color.White, modifier = Modifier.padding(24.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-}
-
-@Composable
-private fun ErrorMessage(message: String, onRetry: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-        Icon(Icons.Filled.WarningAmber, contentDescription = null, tint = Color.White)
-        Spacer(Modifier.height(8.dp))
-        Text(message, color = Color.White, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Spacer(Modifier.height(12.dp))
-        FilledTonalButton(onClick = onRetry) {
-            Icon(Icons.Filled.Refresh, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.retry))
-        }
+@Composable private fun CompareView(ui:CullingUiState,settings:AppSettings,onClose:()->Unit){
+    val group=ui.currentGroup?:return
+    val other=ui.groups.getOrNull(ui.currentIndex+1)
+    if(other==null){Box(Modifier.fillMaxSize().background(Color.Black),contentAlignment=Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){Text("No adjacent photo to compare",color=Color.White);TextButton(onClose){Text("Close")}}};return}
+    var second by remember(other.stem){mutableStateOf<android.graphics.Bitmap?>(null)}
+    val context=LocalContext.current
+    LaunchedEffect(other.stem){
+        second=null
+        val p=PreviewLoader.load(context,other.primaryFile,1080,1080)
+        if(p is PreviewResult.Success) second=p.bitmap
     }
-}
-
-@Composable
-private fun RawBadge(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .clip(PillShape)
-            .background(MaterialTheme.colorScheme.primary)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text("RAW", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelLarge)
-    }
-}
-
-@Composable
-private fun SortButtonsRow(destinations: List<SortDestination>, onSort: (SortDestination) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        destinations.forEach { destination ->
-            Button(
-                onClick = { onSort(destination) },
-                shape = PillShape,
-                contentPadding = PaddingValues(vertical = 16.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    "${destination.label} (${destination.gestureKey})",
-                    style = MaterialTheme.typography.labelLarge
-                )
+    Box(Modifier.fillMaxSize().background(Color.Black)){
+        Row(Modifier.fillMaxSize()){
+            Column(Modifier.weight(1f).fillMaxHeight()){
+                when(val p=ui.previewState){is PreviewUiState.Loaded->Image(p.bitmap.asImageBitmap(),group.stem,Modifier.fillMaxWidth().weight(1f));else->Box(Modifier.weight(1f))}
+                Text("A  ${group.stem}",color=Color.White,modifier=Modifier.padding(8.dp))
+            }
+            Column(Modifier.weight(1f).fillMaxHeight()){
+                if(second!=null) Image(second!!.asImageBitmap(),other.stem,Modifier.fillMaxWidth().weight(1f)) else Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
+                Text("B  ${other.stem}",color=Color.White,modifier=Modifier.padding(8.dp))
             }
         }
+        FilledTonalButton(onClose,Modifier.align(Alignment.BottomCenter).padding(12.dp)){Text("Close")}
     }
 }
 
-@Composable
-private fun ExifPanel(exif: ExifData?) {
-    Card(
-        shape = MaterialTheme.shapes.large,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            ExifRow(stringResource(R.string.camera), exif?.camera)
-            ExifRow(stringResource(R.string.lens), exif?.lens)
-            Row {
-                ExifRow(stringResource(R.string.iso), exif?.iso, Modifier.weight(1f))
-                ExifRow(stringResource(R.string.aperture), exif?.aperture, Modifier.weight(1f))
-                ExifRow(stringResource(R.string.shutter_speed), exif?.shutterSpeed, Modifier.weight(1f))
-            }
-            ExifRow(stringResource(R.string.focal_length), exif?.focalLength)
-            ExifRow(stringResource(R.string.date_time), exif?.dateTime)
-        }
-    }
-}
-
-@Composable
-private fun ExifRow(label: String, value: String?, modifier: Modifier = Modifier) {
-    if (value == null) return
-    Column(modifier.padding(vertical = 3.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        Text(value, style = MaterialTheme.typography.bodyMedium)
-    }
-}
+@Composable private fun SortButtonsRow(destinations:List<SortDestination>,onSort:(SortDestination)->Unit,haptics:Boolean){val h=LocalHapticFeedback.current;Row(Modifier.fillMaxWidth().padding(10.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)){destinations.forEach{d->Button({if(haptics)performCullHaptic(h,d);onSort(d)},Modifier.weight(1f),shape=PillShape){Text("${d.label} (${d.gestureKey})")}}}}
+@Composable private fun ExifPanel(exif:ExifData?){Card(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=4.dp)){Column(Modifier.padding(12.dp)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){ExifRow("Camera",exif?.camera);ExifRow("Lens",exif?.lens)};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){ExifRow("ISO",exif?.iso);ExifRow("Aperture",exif?.aperture);ExifRow("Shutter",exif?.shutterSpeed)};ExifRow("Focal",exif?.focalLength);ExifRow("Date",exif?.dateTime)}}}
+@Composable private fun ExifRow(label:String,value:String?){if(value!=null)Column(Modifier.padding(vertical=2.dp)){Text(label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary);Text(value,style=MaterialTheme.typography.bodySmall)}}

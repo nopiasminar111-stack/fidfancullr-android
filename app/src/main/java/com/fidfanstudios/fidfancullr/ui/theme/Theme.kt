@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import com.fidfanstudios.fidfancullr.data.AccentPalette
 import com.fidfanstudios.fidfancullr.data.ThemeMode
 
@@ -45,6 +46,7 @@ fun FidFanCullrTheme(
     accent: AccentPalette,
     themeMode: ThemeMode,
     useDynamicColor: Boolean,
+    pureBlack: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val useDark = when (themeMode) {
@@ -62,8 +64,12 @@ fun FidFanCullrTheme(
         staticColorSchemeFor(accent, useDark)
     }
 
+    val finalScheme = if (pureBlack && useDark) colorScheme.copy(
+        background = Color.Black, surface = Color.Black, surfaceContainer = Color.Black, surfaceContainerHigh = Color(0xFF080808), surfaceContainerLow = Color.Black
+    ) else colorScheme
+
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = finalScheme,
         typography = FidFanTypography,
         shapes = FidFanShapes,
         content = content

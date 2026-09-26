@@ -4,15 +4,19 @@ import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -91,7 +95,7 @@ fun SettingsScreen(
                             FilterChip(
                                 selected = settings.themeMode == mode,
                                 onClick = { viewModel.setTheme(mode) },
-                                label = { Text(themeModeLabel(mode)) }
+                                label = { ChipLabel(themeModeLabel(mode)) }
                             )
                         }
                     }
@@ -130,7 +134,7 @@ fun SettingsScreen(
                                 selected = accentEnabled && settings.accentPalette == palette,
                                 enabled = accentEnabled,
                                 onClick = { viewModel.setAccent(palette) },
-                                label = { Text(palette.name.replace("_", " ")) }
+                                label = { ChipLabel(palette.name.replace("_", " ")) }
                             )
                         }
                     }
@@ -144,9 +148,24 @@ fun SettingsScreen(
                             FilterChip(
                                 selected = settings.language == code,
                                 onClick = { viewModel.setLanguage(code) },
-                                label = { Text(label) }
+                                label = { ChipLabel(label) }
                             )
                         }
+                    }
+                }
+            }
+
+            item {
+                SettingsSection(icon = Icons.Filled.Tune, title = "Culling & Workflow", subtitle = "Haptics, XMP and naming rules") {
+                    SettingsSwitchRow("Haptic feedback", "Different tactile feedback for culling actions", settings.hapticFeedback, viewModel::setHaptic)
+                    Spacer(Modifier.height(8.dp))
+                    SettingsSwitchRow("XMP sidecars", "Write Lightroom / Bridge compatible rating and label metadata", settings.xmpSidecars, viewModel::setXmp)
+                    Spacer(Modifier.height(8.dp))
+                    SettingsSwitchRow("Pure AMOLED black", "Use true black surfaces in dark mode", settings.pureBlackTheme, viewModel::setPureBlack)
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(settings.customPrefix, viewModel::setPrefix, label={Text("Prefix")}, singleLine=true, modifier=Modifier.weight(1f))
+                        OutlinedTextField(settings.customSuffix, viewModel::setSuffix, label={Text("Suffix")}, singleLine=true, modifier=Modifier.weight(1f))
                     }
                 }
             }
@@ -181,14 +200,32 @@ private fun themeModeLabel(mode: ThemeMode): String = when (mode) {
     ThemeMode.SYSTEM -> stringResource(R.string.system)
 }
 
+/**
+ * Horizontally scrollable so chip labels never get squeezed into a width
+ * smaller than their text needs — that squeeze is what caused "MINT GREEN"
+ * to wrap into "MINT" / "GREE-N" on narrower screens.
+ */
 @Composable
 private fun ChipGroup(content: @Composable () -> Unit) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
     ) {
         content()
     }
+}
+
+/** Chip label that can never wrap onto a second line; truncates instead. */
+@Composable
+private fun ChipLabel(text: String) {
+    Text(
+        text,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 /**
@@ -246,13 +283,30 @@ private fun SettingsSwitchRow(
     }
 }
 
+/** Folder names must be safe for the filesystem: letters, digits, space, - and _. */
+private fun sanitizeFolderName(input: String): String =
+    input.filter { it.isLetterOrDigit() || it == ' ' || it == '-' || it == '_' }
+
 @Composable
 private fun DestinationEditorRow(
     destination: SortDestination,
     onChanged: (SortDestination) -> Unit
 ) {
+    // Local state is the single source of truth while the user is typing.
+    // It is NOT re-derived from `destination` on every recomposition (only
+    // once, via the `destination.id` remember key), so an external update
+    // arriving mid-keystroke (e.g. the settings flow round-tripping through
+    // DataStore) can never overwrite what's currently on screen. Persisting
+    // is also debounced instead of firing on every keystroke, so typing
+    // quickly can't race against disk writes returning out of order — this
+    // is what previously caused characters to appear scrambled.
     var folderName by remember(destination.id) { mutableStateOf(destination.folderName) }
     var gestureKey by remember(destination.id) { mutableStateOf(destination.gestureKey) }
+
+    LaunchedEffect(folderName, gestureKey) {
+        kotlinx.coroutines.delay(400)
+        onChanged(destination.copy(folderName = folderName, gestureKey = gestureKey))
+    }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -260,10 +314,7 @@ private fun DestinationEditorRow(
     ) {
         OutlinedTextField(
             value = folderName,
-            onValueChange = {
-                folderName = it
-                onChanged(destination.copy(folderName = it))
-            },
+            onValueChange = { folderName = sanitizeFolderName(it) },
             label = { Text(destination.label) },
             singleLine = true,
             shape = MaterialTheme.shapes.medium,
@@ -271,10 +322,7 @@ private fun DestinationEditorRow(
         )
         OutlinedTextField(
             value = gestureKey,
-            onValueChange = {
-                gestureKey = it
-                onChanged(destination.copy(gestureKey = it))
-            },
+            onValueChange = { gestureKey = it.filter { c -> c.isLetterOrDigit() }.take(3) },
             label = { Text("Key") },
             singleLine = true,
             shape = MaterialTheme.shapes.medium,

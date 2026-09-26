@@ -33,4 +33,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { repository.setDestinations(destinations) }
     fun setOnboardingComplete(complete: Boolean) =
         viewModelScope.launch { repository.setOnboardingComplete(complete) }
+    fun setPureBlack(enabled: Boolean) = viewModelScope.launch { repository.setPureBlack(enabled) }
+    fun setHaptic(enabled: Boolean) = viewModelScope.launch { repository.setHaptic(enabled) }
+    fun setXmp(enabled: Boolean) = viewModelScope.launch { repository.setXmp(enabled) }
+    fun setPrefix(value: String) = viewModelScope.launch { repository.setPrefix(value) }
+    fun setSuffix(value: String) = viewModelScope.launch { repository.setSuffix(value) }
 }

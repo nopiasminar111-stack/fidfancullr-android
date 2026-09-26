@@ -25,6 +25,11 @@ class SettingsRepository(private val context: Context) {
         val LANGUAGE = stringPreferencesKey("language")
         val DESTINATIONS = stringPreferencesKey("destinations")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+        val PURE_BLACK = booleanPreferencesKey("pure_black_theme")
+        val HAPTIC = booleanPreferencesKey("haptic_feedback")
+        val XMP = booleanPreferencesKey("xmp_sidecars")
+        val PREFIX = stringPreferencesKey("custom_prefix")
+        val SUFFIX = stringPreferencesKey("custom_suffix")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -37,7 +42,12 @@ class SettingsRepository(private val context: Context) {
             useDynamicColor = prefs[Keys.USE_DYNAMIC_COLOR] ?: true,
             language = prefs[Keys.LANGUAGE] ?: "en",
             destinations = prefs[Keys.DESTINATIONS]?.let { decodeDestinations(it) } ?: DEFAULT_DESTINATIONS,
-            onboardingComplete = prefs[Keys.ONBOARDING_COMPLETE] ?: false
+            onboardingComplete = prefs[Keys.ONBOARDING_COMPLETE] ?: false,
+            pureBlackTheme = prefs[Keys.PURE_BLACK] ?: false,
+            hapticFeedback = prefs[Keys.HAPTIC] ?: true,
+            xmpSidecars = prefs[Keys.XMP] ?: true,
+            customPrefix = prefs[Keys.PREFIX] ?: "",
+            customSuffix = prefs[Keys.SUFFIX] ?: ""
         )
     }
 
@@ -68,6 +78,12 @@ class SettingsRepository(private val context: Context) {
     suspend fun setOnboardingComplete(complete: Boolean) {
         context.dataStore.edit { it[Keys.ONBOARDING_COMPLETE] = complete }
     }
+
+    suspend fun setPureBlack(enabled: Boolean) { context.dataStore.edit { it[Keys.PURE_BLACK] = enabled } }
+    suspend fun setHaptic(enabled: Boolean) { context.dataStore.edit { it[Keys.HAPTIC] = enabled } }
+    suspend fun setXmp(enabled: Boolean) { context.dataStore.edit { it[Keys.XMP] = enabled } }
+    suspend fun setPrefix(value: String) { context.dataStore.edit { it[Keys.PREFIX] = value } }
+    suspend fun setSuffix(value: String) { context.dataStore.edit { it[Keys.SUFFIX] = value } }
 
     private fun encodeDestinations(list: List<SortDestination>): String =
         list.joinToString(";") { "${it.id},${it.label},${it.folderName},${it.gestureKey}" }

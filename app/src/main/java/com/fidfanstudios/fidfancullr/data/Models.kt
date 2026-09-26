@@ -65,6 +65,8 @@ data class SortDestination(
 
 enum class ThemeMode { LIGHT, DARK, SYSTEM }
 
+enum class ColorTag { RED, YELLOW, GREEN, NONE }
+
 enum class AccentPalette {
     VIOLET_PIXEL, OCEAN_BLUE, MINT_GREEN, CORAL_PEACH
 }
@@ -85,5 +87,10 @@ data class AppSettings(
     val useDynamicColor: Boolean = true,
     val language: String = "en",
     val destinations: List<SortDestination> = DEFAULT_DESTINATIONS,
-    val onboardingComplete: Boolean = false
+    val onboardingComplete: Boolean = false,
+    val pureBlackTheme: Boolean = false,
+    val hapticFeedback: Boolean = true,
+    val xmpSidecars: Boolean = true,
+    val customPrefix: String = "",
+    val customSuffix: String = ""
 )

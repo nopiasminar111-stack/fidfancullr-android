@@ -6,60 +6,47 @@ import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import com.fidfanstudios.fidfancullr.data.PhotoGroup
 
-/**
- * Moves every file belonging to a PhotoGroup (e.g. the JPG and its paired NEF)
- * together into a destination subfolder of the inbox, using
- * DocumentsContract.moveDocument so it's a fast provider-side move rather
- * than a copy + delete.
- */
 object FileMover {
-
-    fun moveGroupTo(
-        context: Context,
-        inboxUri: Uri,
-        group: PhotoGroup,
-        destinationFolderName: String
-    ): Boolean {
+    fun moveGroupTo(context: Context, inboxUri: Uri, group: PhotoGroup, destinationFolderName: String, prefix: String = "", suffix: String = ""): Boolean {
         val root = DocumentFile.fromTreeUri(context, inboxUri) ?: return false
-        val destDir = root.findFile(destinationFolderName)
-            ?: root.createDirectory(destinationFolderName)
-            ?: return false
-
-        val resolver = context.contentResolver
-        var allSucceeded = true
-
+        val destDir = root.findFile(destinationFolderName) ?: root.createDirectory(destinationFolderName) ?: return false
+        var ok = true
         for (file in group.files) {
-            val success = try {
-                DocumentsContract.moveDocument(
-                    resolver,
-                    file.uri,
-                    root.uri,
-                    destDir.uri
-                ) != null
-            } catch (e: Exception) {
-                // Fallback: some providers don't support moveDocument; copy + delete instead.
-                copyThenDelete(context, file.uri, destDir)
-            }
-            if (!success) allSucceeded = false
-        }
-        return allSucceeded
-    }
-
-    private fun copyThenDelete(context: Context, sourceUri: Uri, destDir: DocumentFile): Boolean {
-        return try {
-            val sourceDoc = DocumentFile.fromSingleUri(context, sourceUri) ?: return false
-            val name = sourceDoc.name ?: return false
-            val mime = sourceDoc.type ?: "application/octet-stream"
-            val newFile = destDir.createFile(mime, name) ?: return false
-
-            context.contentResolver.openInputStream(sourceUri)?.use { input ->
-                context.contentResolver.openOutputStream(newFile.uri)?.use { output ->
-                    input.copyTo(output)
+            val moved = try { DocumentsContract.moveDocument(context.contentResolver, file.uri, root.uri, destDir.uri) != null }
+            catch (_: Exception) { copyThenDelete(context, file.uri, destDir) }
+            if (!moved) ok = false
+            else if (prefix.isNotEmpty() || suffix.isNotEmpty()) {
+                val movedFile = destDir.findFile(file.name)
+                if (movedFile != null) {
+                    val newName = prefix + file.name.substringBeforeLast('.') + suffix + "." + file.name.substringAfterLast('.')
+                    runCatching { DocumentsContract.renameDocument(context.contentResolver, movedFile.uri, newName) }
                 }
             }
-            sourceDoc.delete()
-        } catch (e: Exception) {
-            false
         }
+        return ok
     }
+
+    fun moveGroupBack(context: Context, inboxUri: Uri, group: PhotoGroup, destinationFolderName: String, prefix: String = "", suffix: String = ""): Boolean {
+        val root = DocumentFile.fromTreeUri(context, inboxUri) ?: return false
+        val dest = root.findFile(destinationFolderName) ?: return false
+        var ok = true
+        for (original in group.files) {
+            val renamed = prefix + original.name.substringBeforeLast('.') + suffix + "." + original.name.substringAfterLast('.')
+            val file = dest.findFile(renamed) ?: dest.findFile(original.name) ?: continue
+            val moved = try { DocumentsContract.moveDocument(context.contentResolver, file.uri, dest.uri, root.uri) != null }
+            catch (_: Exception) { copyThenDelete(context, file.uri, root) }
+            if (!moved) ok = false
+        }
+        return ok
+    }
+
+    private fun copyThenDelete(context: Context, sourceUri: Uri, destDir: DocumentFile): Boolean = try {
+        val source = DocumentFile.fromSingleUri(context, sourceUri) ?: return false
+        val name = source.name ?: return false
+        val newFile = destDir.createFile(source.type ?: "application/octet-stream", name) ?: return false
+        context.contentResolver.openInputStream(sourceUri)?.use { input ->
+            context.contentResolver.openOutputStream(newFile.uri)?.use { output -> input.copyTo(output) }
+        } ?: return false
+        source.delete()
+    } catch (_: Exception) { false }
 }
