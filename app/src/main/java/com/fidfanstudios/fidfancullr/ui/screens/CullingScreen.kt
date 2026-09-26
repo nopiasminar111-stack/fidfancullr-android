@@ -1,11 +1,16 @@
 package com.fidfanstudios.fidfancullr.ui.screens
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -13,6 +18,8 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -52,6 +59,17 @@ fun CullingScreen(
     val settings by viewModel.settings.collectAsState()
     var showExif by rememberSaveable { mutableStateOf(true) }
 
+    val pickFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            viewModel.getApplication<android.app.Application>().contentResolver
+                .takePersistableUriPermission(uri, flags)
+            viewModel.setInbox(uri)
+        }
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets.systemBars,
         topBar = {
@@ -88,7 +106,10 @@ fun CullingScreen(
             when {
                 uiState.isLoading -> LoadingState()
 
-                uiState.isComplete || uiState.currentGroup == null -> CompleteState()
+                uiState.isComplete || uiState.currentGroup == null -> CompleteState(
+                    onChooseFolder = { pickFolderLauncher.launch(null) },
+                    onOpenSettings = onOpenSettings
+                )
 
                 else -> CullingWorkspace(
                     group = uiState.currentGroup!!,
@@ -111,20 +132,66 @@ private fun LoadingState() {
     }
 }
 
+/**
+ * Shown whenever there are no photo groups left to sort — either the whole
+ * inbox has been culled, or the picked folder had nothing supported in it.
+ * The person is never left staring at a blank screen: there's always an
+ * immediate, primary way forward (pick a different folder).
+ */
 @Composable
-private fun CompleteState() {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+private fun CompleteState(
+    onChooseFolder: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(300)) + scaleIn(initialScale = 0.92f, animationSpec = tween(300))
     ) {
-        Text(
-            stringResource(R.string.culling_complete),
-            style = MaterialTheme.typography.titleLarge,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
+        Column(
+            Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                Icons.Filled.CheckCircle,
+                contentDescription = null,
+                modifier = Modifier.size(72.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(24.dp))
+            Text(
+                stringResource(R.string.culling_complete),
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                stringResource(R.string.culling_complete_desc),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(Modifier.height(32.dp))
+            Button(
+                onClick = onChooseFolder,
+                shape = PillShape,
+                contentPadding = PaddingValues(horizontal = 28.dp, vertical = 16.dp)
+            ) {
+                Icon(Icons.Filled.CreateNewFolder, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.choose_another_folder), style = MaterialTheme.typography.labelLarge)
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onOpenSettings) {
+                Text(stringResource(R.string.settings))
+            }
+        }
     }
 }
 

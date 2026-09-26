@@ -37,7 +37,9 @@
     <string name="date_time">Date &amp; Time</string>
 
     <string name="no_photos_found">No supported photos found in this folder</string>
-    <string name="culling_complete">All done! Every photo has been sorted.</string>
+    <string name="culling_complete">All done!</string>
+    <string name="culling_complete_desc">Every photo in this folder has been sorted. Pick another folder to keep going.</string>
+    <string name="choose_another_folder">Choose another folder</string>
     <string name="raw_no_preview">No embedded preview available for this RAW file</string>
     <string name="group_count">%1$d of %2$d</string>
     <string name="reset_zoom">Reset zoom</string>

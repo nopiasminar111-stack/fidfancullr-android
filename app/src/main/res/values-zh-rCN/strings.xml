@@ -31,7 +31,9 @@
     <string name="focal_length">焦距</string>
     <string name="date_time">日期和时间</string>
     <string name="no_photos_found">此文件夹中未找到受支持的照片</string>
-    <string name="culling_complete">全部完成！所有照片已分类。</string>
+    <string name="culling_complete">全部完成！</string>
+    <string name="culling_complete_desc">这个文件夹里的照片都分类好了。选择另一个文件夹继续。</string>
+    <string name="choose_another_folder">选择其他文件夹</string>
     <string name="raw_no_preview">此 RAW 文件没有可用的预览</string>
     <string name="group_count">%1$d / %2$d</string>
     <string name="reset_zoom">重置缩放</string>

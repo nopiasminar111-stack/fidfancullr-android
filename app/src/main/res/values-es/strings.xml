@@ -31,7 +31,9 @@
     <string name="focal_length">Distancia focal</string>
     <string name="date_time">Fecha y hora</string>
     <string name="no_photos_found">No se encontraron fotos compatibles en esta carpeta</string>
-    <string name="culling_complete">¡Listo! Todas las fotos han sido clasificadas.</string>
+    <string name="culling_complete">¡Listo!</string>
+    <string name="culling_complete_desc">Todas las fotos de esta carpeta han sido clasificadas. Elige otra carpeta para continuar.</string>
+    <string name="choose_another_folder">Elegir otra carpeta</string>
     <string name="raw_no_preview">No hay vista previa disponible para este archivo RAW</string>
     <string name="group_count">%1$d de %2$d</string>
     <string name="reset_zoom">Restablecer zoom</string>

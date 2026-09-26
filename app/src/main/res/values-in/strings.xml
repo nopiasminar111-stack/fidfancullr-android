@@ -37,7 +37,9 @@
     <string name="date_time">Tanggal &amp; Waktu</string>
 
     <string name="no_photos_found">Tidak ada foto yang didukung di folder ini</string>
-    <string name="culling_complete">Selesai! Semua foto sudah disortir.</string>
+    <string name="culling_complete">Selesai!</string>
+    <string name="culling_complete_desc">Semua foto di folder ini sudah disortir. Pilih folder lain buat lanjut.</string>
+    <string name="choose_another_folder">Pilih folder lain</string>
     <string name="raw_no_preview">Tidak ada preview untuk file RAW ini</string>
     <string name="group_count">%1$d dari %2$d</string>
     <string name="reset_zoom">Reset zoom</string>

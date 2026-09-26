@@ -1,5 +1,23 @@
 # FidFanCullr — Android
 
+## Update 2: real font + settings bug fix + completion flow
+
+- **Google Sans Flex is now really bundled** (`res/font/google_sans_flex.ttf`,
+  ~1.1 MB). It's a genuine variable font (axis `wght` 100–900), so
+  Light/Regular/Medium/SemiBold/Bold/Black are all real instances of that
+  one file via `FontVariation.weight(...)` — no faux-bold, no duplicate font
+  files. It's the app-wide typeface now (`FidFanTypography` in `Type.kt`).
+- **Fixed the Settings "items disappearing" issue.** The actual cause: the
+  Accent Palette section was conditionally *hidden* whenever dynamic color
+  was on (or on Android <12), which is exactly the kind of "Settings
+  structure shrinks" bug described. It's now always visible — just
+  disabled/greyed out when not applicable — so the number of visible
+  Settings items never changes based on other settings or OS version.
+- **Completion screen redesigned**: when there's nothing left to sort (or
+  the folder had nothing supported to begin with), you get a clear "All
+  done!" state with a primary **Choose another folder** button that opens
+  the folder picker directly and starts a new session — no dead end.
+
 ## Update: M3 Expressive redesign + performance pass
 
 - **Look & feel**: bigger rounded corners (M3 Expressive shapes), pill-shaped

@@ -96,7 +96,15 @@ fun SettingsScreen(
                         }
                     }
 
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Dynamic color is only meaningful on Android 12+. On
+                    // older versions we don't show the toggle at all (it
+                    // would do nothing there), but the Accent section below
+                    // is ALWAYS present regardless of dynamic color or OS
+                    // version — it's disabled rather than hidden, so the
+                    // number of visible Settings items never changes.
+                    val dynamicColorSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
+                    if (dynamicColorSupported) {
                         Spacer(Modifier.height(12.dp))
                         SettingsSwitchRow(
                             title = stringResource(R.string.dynamic_color),
@@ -106,18 +114,24 @@ fun SettingsScreen(
                         )
                     }
 
-                    if (!settings.useDynamicColor || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                        Spacer(Modifier.height(12.dp))
-                        Text(stringResource(R.string.accent), style = MaterialTheme.typography.labelLarge)
-                        Spacer(Modifier.height(8.dp))
-                        ChipGroup {
-                            AccentPalette.values().forEach { palette ->
-                                FilterChip(
-                                    selected = settings.accentPalette == palette,
-                                    onClick = { viewModel.setAccent(palette) },
-                                    label = { Text(palette.name.replace("_", " ")) }
-                                )
-                            }
+                    val accentEnabled = !dynamicColorSupported || !settings.useDynamicColor
+
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.accent),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (accentEnabled) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ChipGroup {
+                        AccentPalette.values().forEach { palette ->
+                            FilterChip(
+                                selected = accentEnabled && settings.accentPalette == palette,
+                                enabled = accentEnabled,
+                                onClick = { viewModel.setAccent(palette) },
+                                label = { Text(palette.name.replace("_", " ")) }
+                            )
                         }
                     }
                 }

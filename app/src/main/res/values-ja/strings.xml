@@ -31,7 +31,9 @@
     <string name="focal_length">焦点距離</string>
     <string name="date_time">日時</string>
     <string name="no_photos_found">対応する写真が見つかりません</string>
-    <string name="culling_complete">完了しました！すべての写真を振り分けました。</string>
+    <string name="culling_complete">完了しました！</string>
+    <string name="culling_complete_desc">このフォルダの写真はすべて振り分けが終わりました。続けるには別のフォルダを選んでください。</string>
+    <string name="choose_another_folder">別のフォルダを選ぶ</string>
     <string name="raw_no_preview">このRAWファイルにはプレビューがありません</string>
     <string name="group_count">%1$d / %2$d</string>
     <string name="reset_zoom">ズームをリセット</string>
