@@ -20,6 +20,7 @@ import com.fidfanstudios.fidfancullr.R
  * FontVariation requires API 26+ (this app's minSdk), so no separate
  * fallback path is needed for variable-axis support.
  */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
 private fun flexWeight(weight: FontWeight, wght: Int) = Font(
     resId = R.font.google_sans_flex,
     weight = weight,
