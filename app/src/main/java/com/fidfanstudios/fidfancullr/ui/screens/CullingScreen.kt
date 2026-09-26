@@ -16,7 +16,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+imporBox(gest androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -86,15 +86,13 @@ fun CullingScreen(viewModel:CullingViewModel,onOpenSettings:()->Unit){
     if(showFilter){} // reserved for a future modal surface; sorting is exposed in ToolPanel.
 }
 
-
-private fun performCullHaptic(haptic: androidx.compose.ui.hapticfeedback.HapticFeedback, destination: SortDestination) {
-    val type = when (destination.id) {
-        "keep" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
-        "select" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd
-        "reject" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.KeyboardTap
-        else -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.VirtualKey
-    }
-    haptic.performHapticFeedback(type)
+private fun performCullHaptic(
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    destination: SortDestination
+) {
+    haptic.performHapticFeedback(
+        androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
+    )
 }
 
 @Composable private fun SmallFab(text:String,icon:androidx.compose.ui.graphics.vector.ImageVector,onClick:()->Unit){FilledTonalIconButton(onClick=onClick,modifier=Modifier.height(40.dp).widthIn(min=40.dp)){Icon(icon,text)}}
@@ -131,7 +129,12 @@ private fun performCullHaptic(haptic: androidx.compose.ui.hapticfeedback.HapticF
     Box(Modifier.fillMaxSize().background(Color.Black),contentAlignment=Alignment.Center){
         val gestures=Modifier.pointerInput(group.stem){detectTransformGestures{_,pan,zoom,_->if(scale>1f||zoom>1f){scale=(scale*zoom).coerceIn(1f,5f);ox+=pan.x;oy+=pan.y}}}.pointerInput(group.stem){detectTapGestures(onDoubleTap={scale=if(scale>1.01f)1f else 2f;ox=0f;oy=0f},onTap={if(scale<=1.01f){scale=2f;ox=-it.x*.25f;oy=-it.y*.25f}})}
         val swipe=Modifier.pointerInput(group.stem,destinations){detectDragGestures(onDragEnd={val d=when{abs(dragY)>SWIPE_THRESHOLD&&dragY<0->destinations.firstOrNull{it.id=="select"}?:destinations.getOrNull(1);abs(dragX)>SWIPE_THRESHOLD&&dragX>0->destinations.firstOrNull();abs(dragX)>SWIPE_THRESHOLD->destinations.lastOrNull();else->null};if(d!=null){if(haptics)performCullHaptic(haptic,d);onSort(d)};scope.launch{dragX=0f;dragY=0f}}){c,delta->if(scale<=1.01f){c.consume();dragX+=delta.x;dragY+=delta.y}}}
-        Box(gestures.then(swipe), Modifier.fillMaxSize(), contentAlignment=Alignment.Center) {
+        Box(
+    modifier = gestures
+        .then(swipe)
+        .fillMaxSize(),
+    contentAlignment = Alignment.Center
+) {
             when (previewState) {
                 is PreviewUiState.Loading -> CircularProgressIndicator(color = Color.White)
                 is PreviewUiState.Loaded -> {
