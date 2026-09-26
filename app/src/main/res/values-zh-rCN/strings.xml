@@ -37,4 +37,7 @@
     <string name="reset_zoom">重置缩放</string>
     <string name="show_exif">显示元数据</string>
     <string name="hide_exif">隐藏元数据</string>
+    <string name="retry">重试</string>
+    <string name="dynamic_color">动态取色</string>
+    <string name="dynamic_color_desc">根据壁纸自动配色（Android 12 及以上）</string>
 </resources>

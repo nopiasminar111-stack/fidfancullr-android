@@ -43,4 +43,7 @@
     <string name="reset_zoom">Reset zoom</string>
     <string name="show_exif">Show metadata</string>
     <string name="hide_exif">Hide metadata</string>
+    <string name="retry">Retry</string>
+    <string name="dynamic_color">Dynamic color</string>
+    <string name="dynamic_color_desc">Match colors to your wallpaper (Android 12+)</string>
 </resources>

@@ -43,6 +43,7 @@ fun OnboardingScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.systemBars)
             .padding(24.dp),
         verticalArrangement = Arrangement.Center
     ) {

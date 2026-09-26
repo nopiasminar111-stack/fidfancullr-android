@@ -1,5 +1,72 @@
 # FidFanCullr — Android
 
+## Update: M3 Expressive redesign + performance pass
+
+- **Look & feel**: bigger rounded corners (M3 Expressive shapes), pill-shaped
+  sort buttons, Pixel-style dynamic color on Android 12+ (falls back to the
+  4 accent palettes on older versions or if turned off in Settings), proper
+  edge-to-edge with system bar insets handled everywhere.
+- **Settings screen redesign**: now grouped into clearly separated cards
+  (Inbox, Theme, Language, Sorting) instead of one long list of chips.
+- **RAW preview, bigger**: instead of only the small EXIF thumbnail, the app
+  now scans each RAW file for the largest embedded JPEG preview (most RAW
+  formats store more than one — a tiny EXIF thumbnail *and* a much larger
+  "camera LCD" preview) and shows that. See the "RAW preview" section below
+  for what this can and can't do.
+- **Async decode + caching + preload**: decoding happens off the main thread,
+  results are cached in memory (see Memory management below), and the
+  next/previous image's preview is preloaded in the background so paging
+  through photos feels instant after the first view.
+- **Loading / error states**: each image now shows a spinner while decoding
+  and a retry button if decoding fails, instead of silently showing nothing.
+- **Smoother gestures**: swipe-to-sort and pinch-zoom/pan now use
+  `Animatable` with spring physics (snaps back smoothly if a swipe doesn't
+  clear the threshold), and swipe-to-sort is disabled while zoomed in so the
+  two gestures never fight each other.
+- **Fewer recompositions**: the image/gesture area is now its own composable
+  so fast-changing drag/zoom state doesn't recompose the top bar, EXIF panel,
+  or sort buttons on every frame.
+
+### Google Sans Flex — not bundled yet
+
+I could not safely bundle real Google Sans Flex in this pass: doing it right
+needs either the actual `.ttf` files (no network access here to fetch them)
+or Google Play Services' Downloadable Fonts API, which requires a provider
+certificate hash that must exactly match Google's — a hand-typed guess at
+that hash fails silently rather than loudly, which is worse than not trying.
+Typography currently uses the platform's sans-serif with M3 Expressive's
+bolder weights/sizes. To add the real font later:
+
+1. Download the 4 weights you want from
+   [Google Fonts – Google Sans Flex](https://fonts.google.com/specimen/Google+Sans+Flex)
+2. Add them under `app/src/main/res/font/` (e.g. `google_sans_flex_regular.ttf`)
+3. In `ui/theme/Type.kt`, replace `FontFamily.SansSerif` with a `FontFamily(Font(R.font.google_sans_flex_regular), ...)`
+
+### RAW preview: what "largest embedded preview" means
+
+Camera RAW files (NEF, CR2/CR3, ARW, DNG, RAF, ORF, RW2, PEF, SRW) typically
+embed more than one JPEG inside the container: a tiny thumbnail (~160×120,
+for file browsers) and often a much larger preview (sometimes near full
+resolution) used for the camera's own LCD/EVF display. `EmbeddedJpegScanner`
+scans the raw bytes for every JPEG segment and keeps the largest one, which
+is what gets shown. This is **not** a full sensor-data RAW decode (that
+needs a native decoder like LibRaw via the NDK) — a small number of RAW
+files only carry the tiny thumbnail and nothing bigger, in which case the
+app falls back to that.
+
+### Memory management
+
+- Every decode goes through `PreviewLoader`, which first reads the target
+  image's real dimensions, then decodes at an `inSampleSize` that fits the
+  device's screen resolution — a 45 MP RAW preview never gets fully decoded
+  into memory just to be shown on a 1080p screen.
+- Decoded bitmaps are kept in `BitmapMemoryCache`, an `LruCache` sized to
+  1/8th of the app's available heap (the standard Android-recommended
+  sizing), evicting the oldest entries automatically under memory pressure.
+- Preloading the next/previous image reuses this same cache and the same
+  downsampling, so it doesn't add uncapped memory growth.
+
+
 An Android redesign of the original Windows FidFanCullr photo-culling app,
 built with Kotlin + Jetpack Compose and Material 3 Expressive styling.
 

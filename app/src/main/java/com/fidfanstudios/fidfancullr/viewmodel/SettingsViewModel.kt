@@ -27,6 +27,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setInbox(uri: Uri) = viewModelScope.launch { repository.setInboxUri(uri.toString()) }
     fun setTheme(mode: ThemeMode) = viewModelScope.launch { repository.setThemeMode(mode) }
     fun setAccent(accent: AccentPalette) = viewModelScope.launch { repository.setAccent(accent) }
+    fun setUseDynamicColor(enabled: Boolean) = viewModelScope.launch { repository.setUseDynamicColor(enabled) }
     fun setLanguage(language: String) = viewModelScope.launch { repository.setLanguage(language) }
     fun setDestinations(destinations: List<SortDestination>) =
         viewModelScope.launch { repository.setDestinations(destinations) }

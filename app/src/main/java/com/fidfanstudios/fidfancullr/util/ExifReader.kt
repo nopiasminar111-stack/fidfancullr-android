@@ -1,8 +1,6 @@
 package com.fidfanstudios.fidfancullr.util
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import com.fidfanstudios.fidfancullr.data.ExifData
 import com.fidfanstudios.fidfancullr.data.PhotoFile
 import androidx.exifinterface.media.ExifInterface
@@ -12,10 +10,9 @@ import androidx.exifinterface.media.ExifInterface
  * can parse EXIF tags directly out of most RAW containers (NEF, CR2, ARW, DNG,
  * ORF, PEF, RAF, RW2, SRW) without needing a full RAW decoder.
  *
- * Full RAW pixel decoding is intentionally out of scope here: it needs a
- * native library such as LibRaw via the NDK. Instead, for RAW files we show
- * the embedded preview/thumbnail image that virtually every RAW file carries,
- * which is what most mobile culling apps do in practice.
+ * Preview bitmap loading lives in [com.fidfanstudios.fidfancullr.util.PreviewLoader]
+ * instead of here, since that needs downsampling, caching and RAW-specific
+ * embedded-JPEG scanning that don't belong in a metadata reader.
  */
 object ExifReader {
 
@@ -41,24 +38,6 @@ object ExifReader {
         } catch (e: Exception) {
             ExifData()
         }
-    }
-
-    /** Returns a preview bitmap: the full JPEG for JPEGs, or the embedded thumbnail for RAW. */
-    fun loadPreviewBitmap(context: Context, file: PhotoFile): Bitmap? {
-        return try {
-            context.contentResolver.openInputStream(file.uri)?.use { stream ->
-                val exif = ExifInterface(stream)
-                val thumb = exif.thumbnailBitmap
-                if (thumb != null) return thumb
-                null
-            }
-        } catch (e: Exception) {
-            null
-        } ?: runCatching {
-            context.contentResolver.openInputStream(file.uri)?.use { stream ->
-                BitmapFactory.decodeStream(stream)
-            }
-        }.getOrNull()
     }
 
     private fun formatShutter(exposureTime: String): String {

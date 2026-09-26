@@ -37,4 +37,7 @@
     <string name="reset_zoom">Restablecer zoom</string>
     <string name="show_exif">Mostrar metadatos</string>
     <string name="hide_exif">Ocultar metadatos</string>
+    <string name="retry">Reintentar</string>
+    <string name="dynamic_color">Color dinámico</string>
+    <string name="dynamic_color_desc">Ajusta los colores a tu fondo de pantalla (Android 12+)</string>
 </resources>

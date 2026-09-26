@@ -37,4 +37,7 @@
     <string name="reset_zoom">ズームをリセット</string>
     <string name="show_exif">メタデータを表示</string>
     <string name="hide_exif">メタデータを隠す</string>
+    <string name="retry">再試行</string>
+    <string name="dynamic_color">ダイナミックカラー</string>
+    <string name="dynamic_color_desc">壁紙に合わせて配色（Android 12以降）</string>
 </resources>

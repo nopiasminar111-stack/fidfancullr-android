@@ -79,6 +79,10 @@ data class AppSettings(
     val inboxUri: String? = null,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accentPalette: AccentPalette = AccentPalette.VIOLET_PIXEL,
+    // Pixel-style wallpaper-based color, on by default like stock Pixel apps.
+    // Only takes effect on Android 12+; ignored (falls back to accentPalette)
+    // on older versions.
+    val useDynamicColor: Boolean = true,
     val language: String = "en",
     val destinations: List<SortDestination> = DEFAULT_DESTINATIONS,
     val onboardingComplete: Boolean = false

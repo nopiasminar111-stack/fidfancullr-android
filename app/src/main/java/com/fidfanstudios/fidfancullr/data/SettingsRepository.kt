@@ -21,6 +21,7 @@ class SettingsRepository(private val context: Context) {
         val INBOX_URI = stringPreferencesKey("inbox_uri")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val ACCENT = stringPreferencesKey("accent")
+        val USE_DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
         val LANGUAGE = stringPreferencesKey("language")
         val DESTINATIONS = stringPreferencesKey("destinations")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
@@ -33,6 +34,7 @@ class SettingsRepository(private val context: Context) {
                 ?: ThemeMode.SYSTEM,
             accentPalette = prefs[Keys.ACCENT]?.let { runCatching { AccentPalette.valueOf(it) }.getOrNull() }
                 ?: AccentPalette.VIOLET_PIXEL,
+            useDynamicColor = prefs[Keys.USE_DYNAMIC_COLOR] ?: true,
             language = prefs[Keys.LANGUAGE] ?: "en",
             destinations = prefs[Keys.DESTINATIONS]?.let { decodeDestinations(it) } ?: DEFAULT_DESTINATIONS,
             onboardingComplete = prefs[Keys.ONBOARDING_COMPLETE] ?: false
@@ -49,6 +51,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAccent(accent: AccentPalette) {
         context.dataStore.edit { it[Keys.ACCENT] = accent.name }
+    }
+
+    suspend fun setUseDynamicColor(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.USE_DYNAMIC_COLOR] = enabled }
     }
 
     suspend fun setLanguage(language: String) {

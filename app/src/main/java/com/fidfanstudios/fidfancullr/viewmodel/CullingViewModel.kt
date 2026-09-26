@@ -12,12 +12,23 @@ import com.fidfanstudios.fidfancullr.data.SortDestination
 import com.fidfanstudios.fidfancullr.util.ExifReader
 import com.fidfanstudios.fidfancullr.util.FileMover
 import com.fidfanstudios.fidfancullr.util.PhotoGrouper
+import com.fidfanstudios.fidfancullr.util.PreviewLoader
+import com.fidfanstudios.fidfancullr.util.PreviewResult
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+sealed class PreviewUiState {
+    object Loading : PreviewUiState()
+    data class Loaded(val bitmap: android.graphics.Bitmap) : PreviewUiState()
+    object NoPreview : PreviewUiState()
+    data class Error(val message: String) : PreviewUiState()
+}
 
 data class CullingUiState(
     val isLoading: Boolean = true,
@@ -26,6 +37,7 @@ data class CullingUiState(
     val totalCount: Int = 0,
     val sortedCount: Int = 0,
     val currentExif: ExifData? = null,
+    val previewState: PreviewUiState = PreviewUiState.Loading,
     val isComplete: Boolean = false
 ) {
     val currentGroup: PhotoGroup?
@@ -42,11 +54,22 @@ class CullingViewModel(application: Application) : AndroidViewModel(application)
     val settings: StateFlow<AppSettings> = MutableStateFlow(AppSettings())
     private val _settings = settings as MutableStateFlow<AppSettings>
 
+    // Preview requests are downsampled to roughly the device's screen size
+    // (never full RAW/embedded-preview resolution) to keep memory bounded.
+    private val reqWidth: Int
+    private val reqHeight: Int
+
+    private var previewLoadJob: Job? = null
+
     init {
+        val metrics = application.resources.displayMetrics
+        reqWidth = metrics.widthPixels
+        reqHeight = metrics.heightPixels
+
         viewModelScope.launch {
             settingsRepository.settingsFlow.collect { s ->
                 _settings.value = s
-                if (s.inboxUri != null && _uiState.value.groups.isEmpty()) {
+                if (s.inboxUri != null && _uiState.value.groups.isEmpty() && !_uiState.value.isComplete) {
                     loadGroups(Uri.parse(s.inboxUri))
                 }
             }
@@ -67,20 +90,45 @@ class CullingViewModel(application: Application) : AndroidViewModel(application)
                 sortedCount = 0,
                 isComplete = groups.isEmpty()
             )
-            loadCurrentExif()
+            loadCurrentPreviewAndExif()
         }
     }
 
-    private fun loadCurrentExif() {
+    private fun loadCurrentPreviewAndExif() {
+        previewLoadJob?.cancel()
+
         val group = _uiState.value.currentGroup ?: run {
-            _uiState.value = _uiState.value.copy(currentExif = null)
+            _uiState.value = _uiState.value.copy(currentExif = null, previewState = PreviewUiState.NoPreview)
             return
         }
-        viewModelScope.launch {
-            val exif = withContext(Dispatchers.IO) {
-                ExifReader.read(getApplication(), group.primaryFile)
-            }
-            _uiState.value = _uiState.value.copy(currentExif = exif)
+
+        _uiState.value = _uiState.value.copy(previewState = PreviewUiState.Loading, currentExif = null)
+
+        previewLoadJob = viewModelScope.launch {
+            val exifDeferred = async(Dispatchers.IO) { ExifReader.read(getApplication(), group.primaryFile) }
+            val previewResult = PreviewLoader.load(getApplication(), group.primaryFile, reqWidth, reqHeight)
+
+            _uiState.value = _uiState.value.copy(
+                currentExif = exifDeferred.await(),
+                previewState = when (previewResult) {
+                    is PreviewResult.Success -> PreviewUiState.Loaded(previewResult.bitmap)
+                    is PreviewResult.NoPreviewAvailable -> PreviewUiState.NoPreview
+                    is PreviewResult.Failed -> PreviewUiState.Error(previewResult.reason)
+                }
+            )
+
+            preloadAdjacent()
+        }
+    }
+
+    private fun preloadAdjacent() {
+        val state = _uiState.value
+        val nextGroup = state.groups.getOrNull(state.currentIndex + 1)
+        val prevGroup = state.groups.getOrNull(state.currentIndex - 1)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            nextGroup?.let { PreviewLoader.preload(getApplication(), it.primaryFile, reqWidth, reqHeight) }
+            prevGroup?.let { PreviewLoader.preload(getApplication(), it.primaryFile, reqWidth, reqHeight) }
         }
     }
 
@@ -101,6 +149,10 @@ class CullingViewModel(application: Application) : AndroidViewModel(application)
         advance()
     }
 
+    fun retryCurrentPreview() {
+        loadCurrentPreviewAndExif()
+    }
+
     private fun advance() {
         val state = _uiState.value
         val remaining = state.groups.filterIndexed { index, _ -> index != state.currentIndex }
@@ -111,7 +163,7 @@ class CullingViewModel(application: Application) : AndroidViewModel(application)
             sortedCount = state.sortedCount + 1,
             isComplete = remaining.isEmpty()
         )
-        loadCurrentExif()
+        loadCurrentPreviewAndExif()
     }
 
     fun updateDestinations(destinations: List<SortDestination>) {
