@@ -65,7 +65,9 @@ class CullingViewModel(application:Application):AndroidViewModel(application) {
         _uiState.value=_uiState.value.copy(previewState=PreviewUiState.Loading)
         previewLoadJob=viewModelScope.launch {
             val exif=async(Dispatchers.IO){ExifReader.read(getApplication(),group.primaryFile)}
-            val preview=PreviewLoader.load(getApplication(),group.primaryFile,reqWidth,reqHeight)
+            val preview=withContext(Dispatchers.IO) {
+                PreviewLoader.load(getApplication(), group.primaryFile, reqWidth, reqHeight)
+            }
             _uiState.value=_uiState.value.copy(currentExif=exif.await(),previewState=when(preview){
                 is PreviewResult.Success->PreviewUiState.Loaded(preview.bitmap)
                 is PreviewResult.NoPreviewAvailable->PreviewUiState.NoPreview

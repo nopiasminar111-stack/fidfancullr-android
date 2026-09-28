@@ -1,15 +1,16 @@
 package com.fidfanstudios.fidfancullr
 
 import android.os.Bundle
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,6 +42,8 @@ class MainActivity : ComponentActivity() {
     private val cullingViewModel: CullingViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition { settingsViewModel.settings.value == null }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
@@ -88,8 +91,8 @@ private fun AppNavHost(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        enterTransition = { fadeIn(tween(180)) + slideInHorizontally(initialOffsetX = { it / 10 }, animationSpec = tween(220)) },
-        exitTransition = { fadeOut(tween(150)) + slideOutHorizontally(targetOffsetX = { -it / 12 }, animationSpec = tween(180)) }
+        enterTransition = { fadeIn(tween(220)) + scaleIn(initialScale = 0.985f, animationSpec = tween(220)) },
+        exitTransition = { fadeOut(tween(170)) + scaleOut(targetScale = 1.015f, animationSpec = tween(170)) }
     ) {
         composable(Routes.ONBOARDING) {
             OnboardingScreen(
@@ -109,8 +112,8 @@ private fun AppNavHost(
         }
         composable(
             Routes.SETTINGS,
-            enterTransition = { fadeIn(tween(180)) + slideInHorizontally(initialOffsetX = { it / 8 }, animationSpec = tween(220)) },
-            exitTransition = { fadeOut(tween(150)) + slideOutHorizontally(targetOffsetX = { it / 10 }, animationSpec = tween(180)) }
+            enterTransition = { fadeIn(tween(220)) + scaleIn(initialScale = 0.985f, animationSpec = tween(220)) },
+            exitTransition = { fadeOut(tween(170)) + scaleOut(targetScale = 1.015f, animationSpec = tween(170)) }
         ) {
             SettingsScreen(
                 viewModel = settingsViewModel,

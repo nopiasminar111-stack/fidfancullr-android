@@ -5,10 +5,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -19,8 +17,6 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -33,6 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -86,13 +83,15 @@ fun CullingScreen(viewModel:CullingViewModel,onOpenSettings:()->Unit){
     if(showFilter){} // reserved for a future modal surface; sorting is exposed in ToolPanel.
 }
 
-private fun performCullHaptic(
-    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
-    destination: SortDestination
-) {
-    haptic.performHapticFeedback(
-        androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
-    )
+
+private fun performCullHaptic(haptic: androidx.compose.ui.hapticfeedback.HapticFeedback, destination: SortDestination) {
+    val type = when (destination.id) {
+        "keep" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
+        "select" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd
+        "reject" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.KeyboardTap
+        else -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.VirtualKey
+    }
+    haptic.performHapticFeedback(type)
 }
 
 @Composable private fun SmallFab(text:String,icon:androidx.compose.ui.graphics.vector.ImageVector,onClick:()->Unit){FilledTonalIconButton(onClick=onClick,modifier=Modifier.height(40.dp).widthIn(min=40.dp)){Icon(icon,text)}}
@@ -110,40 +109,166 @@ private fun performCullHaptic(
 @Composable private fun LoadingState(){Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}}
 @Composable private fun CompleteState(onChooseFolder:()->Unit,onOpenSettings:()->Unit){var visible by remember{mutableStateOf(false)};LaunchedEffect(Unit){visible=true};AnimatedVisibility(visible,enter=fadeIn(tween(220))+scaleIn(initialScale=.96f,animationSpec=spring())){Column(Modifier.fillMaxSize().padding(32.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){Icon(Icons.Default.CheckCircle,null,Modifier.size(72.dp),tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.height(20.dp));Text(stringResource(R.string.culling_complete),style=MaterialTheme.typography.headlineMedium);Spacer(Modifier.height(8.dp));Text(stringResource(R.string.culling_complete_desc),textAlign=androidx.compose.ui.text.style.TextAlign.Center);Spacer(Modifier.height(24.dp));Button(onChooseFolder,shape=PillShape){Icon(Icons.Default.CreateNewFolder,null);Spacer(Modifier.width(8.dp));Text(stringResource(R.string.choose_another_folder))};TextButton(onOpenSettings){Text(stringResource(R.string.settings))}}}}
 
-@Composable private fun ZoomableSwipeableImage(group:PhotoGroup,previewState:PreviewUiState,destinations:List<SortDestination>,haptics:Boolean,onSort:(SortDestination)->Unit,onRetry:()->Unit){
-    val scope=rememberCoroutineScope();val haptic=LocalHapticFeedback.current;var scale by remember(group.stem){mutableFloatStateOf(1f)};var ox by remember(group.stem){mutableFloatStateOf(0f)};var oy by remember(group.stem){mutableFloatStateOf(0f)};var dragX by remember(group.stem){mutableFloatStateOf(0f)};var dragY by remember(group.stem){mutableFloatStateOf(0f)};var highlight by rememberSaveable(group.stem){mutableStateOf(false)}
-    val highlightRatio = remember(previewState) {
-        val bitmap = (previewState as? PreviewUiState.Loaded)?.bitmap
-        if (bitmap == null) 0f else {
-            val step = (bitmap.width * bitmap.height / 4000).coerceAtLeast(1)
-            var clipped = 0; var samples = 0; var i = 0
-            while (i < bitmap.width * bitmap.height) {
-                val c = bitmap.getPixel(i % bitmap.width, i / bitmap.width)
-                if (android.graphics.Color.red(c) > 245 && android.graphics.Color.green(c) > 245 && android.graphics.Color.blue(c) > 245) clipped++
-                samples++; i += step
-            }
-            if (samples == 0) 0f else clipped.toFloat() / samples
-        }
-    }
-    val animatedDrag by animateFloatAsState(dragX,animationSpec=spring(dampingRatio=Spring.DampingRatioMediumBouncy,stiffness=Spring.StiffnessMedium),label="drag")
-    Box(Modifier.fillMaxSize().background(Color.Black),contentAlignment=Alignment.Center){
-        val gestures=Modifier.pointerInput(group.stem){detectTransformGestures{_,pan,zoom,_->if(scale>1f||zoom>1f){scale=(scale*zoom).coerceIn(1f,5f);ox+=pan.x;oy+=pan.y}}}.pointerInput(group.stem){detectTapGestures(onDoubleTap={scale=if(scale>1.01f)1f else 2f;ox=0f;oy=0f},onTap={if(scale<=1.01f){scale=2f;ox=-it.x*.25f;oy=-it.y*.25f}})}
-        val swipe=Modifier.pointerInput(group.stem,destinations){detectDragGestures(onDragEnd={val d=when{abs(dragY)>SWIPE_THRESHOLD&&dragY<0->destinations.firstOrNull{it.id=="select"}?:destinations.getOrNull(1);abs(dragX)>SWIPE_THRESHOLD&&dragX>0->destinations.firstOrNull();abs(dragX)>SWIPE_THRESHOLD->destinations.lastOrNull();else->null};if(d!=null){if(haptics)performCullHaptic(haptic,d);onSort(d)};scope.launch{dragX=0f;dragY=0f}}){c,delta->if(scale<=1.01f){c.consume();dragX+=delta.x;dragY+=delta.y}}}
-        Box(
-    modifier = gestures
-        .then(swipe)
-        .fillMaxSize(),
-    contentAlignment = Alignment.Center
+@Composable
+private fun ZoomableSwipeableImage(
+    group: PhotoGroup,
+    previewState: PreviewUiState,
+    destinations: List<SortDestination>,
+    haptics: Boolean,
+    onSort: (SortDestination) -> Unit,
+    onRetry: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    var scale by remember(group.stem) { mutableFloatStateOf(1f) }
+    var ox by remember(group.stem) { mutableFloatStateOf(0f) }
+    var oy by remember(group.stem) { mutableFloatStateOf(0f) }
+    var dragX by remember(group.stem) { mutableFloatStateOf(0f) }
+    var dragY by remember(group.stem) { mutableFloatStateOf(0f) }
+    var highlight by rememberSaveable(group.stem) { mutableStateOf(false) }
+    var sorting by remember(group.stem) { mutableStateOf(false) }
+
+    // Keep expensive bitmap inspection tiny and deterministic. Doing millions of
+    // getPixel() calls during composition was a major source of UI-thread jank.
+    val highlightRatio = remember(previewState) {
+        val bitmap = (previewState as? PreviewUiState.Loaded)?.bitmap ?: return@remember 0f
+        val targetSamples = 1_500
+        val step = (bitmap.width * bitmap.height / targetSamples).coerceAtLeast(1)
+        var clipped = 0
+        var samples = 0
+        var index = 0
+        val pixels = bitmap.width * bitmap.height
+        while (index < pixels) {
+            val x = index % bitmap.width
+            val y = index / bitmap.width
+            val c = bitmap.getPixel(x, y)
+            if (android.graphics.Color.red(c) > 245 &&
+                android.graphics.Color.green(c) > 245 &&
+                android.graphics.Color.blue(c) > 245
+            ) clipped++
+            samples++
+            index += step
+        }
+        if (samples == 0) 0f else clipped.toFloat() / samples
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        val gestures = Modifier.pointerInput(group.stem) {
+            detectTransformGestures { _, pan, zoom, _ ->
+                if (scale > 1f || zoom > 1f) {
+                    scale = (scale * zoom).coerceIn(1f, 5f)
+                    ox += pan.x
+                    oy += pan.y
+                }
+            }
+        }.pointerInput(group.stem) {
+            detectTapGestures(
+                onDoubleTap = {
+                    scale = if (scale > 1.01f) 1f else 2f
+                    ox = 0f
+                    oy = 0f
+                },
+                onTap = {
+                    if (scale <= 1.01f) {
+                        scale = 2f
+                        ox = -it.x * .25f
+                        oy = -it.y * .25f
+                    }
+                }
+            )
+        }
+
+        val swipe = Modifier.pointerInput(group.stem, destinations, sorting, scale) {
+            detectDragGestures(
+                onDragEnd = {
+                    if (sorting) return@detectDragGestures
+                    val destination = when {
+                        abs(dragY) > SWIPE_THRESHOLD && dragY < 0 ->
+                            destinations.firstOrNull { it.id == "select" } ?: destinations.getOrNull(1)
+                        abs(dragX) > SWIPE_THRESHOLD && dragX > 0 -> destinations.firstOrNull()
+                        abs(dragX) > SWIPE_THRESHOLD -> destinations.lastOrNull()
+                        else -> null
+                    }
+
+                    if (destination != null) {
+                        sorting = true
+                        if (haptics) performCullHaptic(haptic, destination)
+                        val endX = when {
+                            abs(dragY) > SWIPE_THRESHOLD && dragY < 0 -> 0f
+                            dragX > 0 -> 900f
+                            else -> -900f
+                        }
+                        val endY = if (abs(dragY) > SWIPE_THRESHOLD && dragY < 0) -900f else dragY
+                        scope.launch {
+                            // Finger tracking is immediate. Only the release is animated,
+                            // with a non-bouncy ease-out similar to modern system UI.
+                            val duration = 220
+                            val startX = dragX
+                            val startY = dragY
+                            val start = System.nanoTime()
+                            while (true) {
+                                val elapsed = ((System.nanoTime() - start) / 1_000_000L).toInt()
+                                val t = (elapsed / duration.toFloat()).coerceIn(0f, 1f)
+                                val eased = FastOutSlowInEasing.transform(t)
+                                dragX = startX + (endX - startX) * eased
+                                dragY = startY + (endY - startY) * eased
+                                if (t >= 1f) break
+                                kotlinx.coroutines.yield()
+                            }
+                            onSort(destination)
+                        }
+                    } else {
+                        scope.launch {
+                            val startX = dragX
+                            val startY = dragY
+                            val start = System.nanoTime()
+                            val duration = 180
+                            while (true) {
+                                val elapsed = ((System.nanoTime() - start) / 1_000_000L).toInt()
+                                val t = (elapsed / duration.toFloat()).coerceIn(0f, 1f)
+                                val eased = FastOutSlowInEasing.transform(t)
+                                dragX = startX * (1f - eased)
+                                dragY = startY * (1f - eased)
+                                if (t >= 1f) break
+                                kotlinx.coroutines.yield()
+                            }
+                        }
+                    }
+                }
+            ) { change, delta ->
+                if (!sorting && scale <= 1.01f) {
+                    change.consume()
+                    dragX += delta.x
+                    dragY += delta.y
+                }
+            }
+        }
+
+        Box(
+            gestures.then(swipe),
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
             when (previewState) {
                 is PreviewUiState.Loading -> CircularProgressIndicator(color = Color.White)
                 is PreviewUiState.Loaded -> {
                     Image(
-                        previewState.bitmap.asImageBitmap(), group.stem,
-                        Modifier.fillMaxSize().graphicsLayer(
-                            scaleX = scale, scaleY = scale,
-                            translationX = ox + animatedDrag, translationY = oy + dragY
-                        )
+                        bitmap = previewState.bitmap.asImageBitmap(),
+                        contentDescription = group.stem,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = ox + dragX,
+                                translationY = oy + dragY
+                            )
                     )
                     HistogramOverlay(previewState.bitmap)
                     if (highlight && highlightRatio > .005f) HighlightBadge(highlightRatio)

@@ -1,3 +1,14 @@
 <resources>
-    <style name="Theme.FidFanCullr" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.FidFanCullr" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#6E55A5</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.FidFanCullr.PostSplash</item>
+    </style>
+
+    <style name="Theme.FidFanCullr.PostSplash" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
 </resources>

@@ -68,8 +68,20 @@ object PreviewLoader {
         "${file.uri}|${file.lastModified}|${reqWidth}x${reqHeight}"
 
     private fun loadDownsampled(context: Context, file: PhotoFile, reqWidth: Int, reqHeight: Int): Bitmap? {
-        val bytes = context.contentResolver.openInputStream(file.uri)?.use { it.readBytes() } ?: return null
-        return decodeSampled(bytes, 0, bytes.size, reqWidth, reqHeight)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(file.uri)?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        } ?: return null
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, reqWidth, reqHeight)
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inMutable = false
+        }
+        return context.contentResolver.openInputStream(file.uri)?.use {
+            BitmapFactory.decodeStream(it, null, options)
+        }
     }
 
     private fun loadExifThumbnail(context: Context, file: PhotoFile): Bitmap? {
