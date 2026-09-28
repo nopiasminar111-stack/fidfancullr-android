@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -15,7 +16,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+importBox androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -84,14 +85,13 @@ fun CullingScreen(viewModel:CullingViewModel,onOpenSettings:()->Unit){
 }
 
 
-private fun performCullHaptic(haptic: androidx.compose.ui.hapticfeedback.HapticFeedback, destination: SortDestination) {
-    val type = when (destination.id) {
-        "keep" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
-        "select" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd
-        "reject" -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.KeyboardTap
-        else -> androidx.compose.ui.hapticfeedback.HapticFeedbackType.VirtualKey
-    }
-    haptic.performHapticFeedback(type)
+private fun performCullHaptic(
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    destination: SortDestination
+) {
+    haptic.performHapticFeedback(
+        androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
+    )
 }
 
 @Composable private fun SmallFab(text:String,icon:androidx.compose.ui.graphics.vector.ImageVector,onClick:()->Unit){FilledTonalIconButton(onClick=onClick,modifier=Modifier.height(40.dp).widthIn(min=40.dp)){Icon(icon,text)}}
@@ -250,10 +250,11 @@ private fun ZoomableSwipeableImage(
         }
 
         Box(
-            gestures.then(swipe),
-            Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
+    modifier = gestures
+        .then(swipe)
+        .fillMaxSize(),
+    contentAlignment = Alignment.Center
+) {
             when (previewState) {
                 is PreviewUiState.Loading -> CircularProgressIndicator(color = Color.White)
                 is PreviewUiState.Loaded -> {

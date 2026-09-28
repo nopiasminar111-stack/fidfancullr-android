@@ -1,6 +1,7 @@
 package com.fidfanstudios.fidfancullr.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -20,12 +21,14 @@ import com.fidfanstudios.fidfancullr.R
  * FontVariation requires API 26+ (this app's minSdk), so no separate
  * fallback path is needed for variable-axis support.
  */
+@OptIn(ExperimentalTextApi::class)
 private fun flexWeight(weight: FontWeight, wght: Int) = Font(
     resId = R.font.google_sans_flex,
     weight = weight,
     variationSettings = FontVariation.Settings(FontVariation.weight(wght))
 )
 
+@OptIn(ExperimentalTextApi::class)
 val GoogleSansFlex = FontFamily(
     flexWeight(FontWeight.Light, 300),
     flexWeight(FontWeight.Normal, 400),
