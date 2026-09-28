@@ -40,31 +40,32 @@ object FileMover {
         return ok
     }
 
-    private fun copyThenDelete(
-    context: Context,
-    sourceUri: Uri,
-    destDir: DocumentFile
-): Boolean {
-    return try {
-        val source = DocumentFile.fromSingleUri(context, sourceUri)
-            ?: return false
+        private fun copyThenDelete(
+        context: Context,
+        sourceUri: Uri,
+        destDir: DocumentFile
+    ): Boolean {
+        return try {
+            val source = DocumentFile.fromSingleUri(context, sourceUri)
+                ?: return false
 
-        val name = source.name
-            ?: return false
+            val name = source.name
+                ?: return false
 
-        val newFile = destDir.createFile(
-            source.type ?: "application/octet-stream",
-            name
-        ) ?: return false
+            val newFile = destDir.createFile(
+                source.type ?: "application/octet-stream",
+                name
+            ) ?: return false
 
-        context.contentResolver.openInputStream(sourceUri)?.use { input ->
-            context.contentResolver.openOutputStream(newFile.uri)?.use { output ->
-                input.copyTo(output)
+            context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                context.contentResolver.openOutputStream(newFile.uri)?.use { output ->
+                    input.copyTo(output)
+                } ?: return false
             } ?: return false
-        } ?: return false
 
-        source.delete()
-    } catch (_: Exception) {
-        false
+            source.delete()
+        } catch (_: Exception) {
+            false
+        }
     }
 }
